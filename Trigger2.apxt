@@ -1,0 +1,23 @@
+trigger UpdateProductStockOnOrder on Order__c (after insert) {
+    Map<Id, Integer> productIdToQuantityMap = new Map<Id, Integer>();
+
+    // Collect the ordered quantity for each product
+    for (OrderItem__c orderItem : [SELECT Product__c, Quantity__c FROM OrderItem__c WHERE Order__c IN :Trigger.new]) {
+        if (productIdToQuantityMap.containsKey(orderItem.Product__c)) {
+            productIdToQuantityMap.put(orderItem.Product__c, productIdToQuantityMap.get(orderItem.Product__c) + orderItem.Quantity__c);
+        } else {
+            productIdToQuantityMap.put(orderItem.Product__c, orderItem.Quantity__c);
+        }
+    }
+    
+    // Query the current stock levels for the products
+    List<Product__c> productsToUpdate = [SELECT Id, Stock__c FROM Product__c WHERE Id IN :productIdToQuantityMap.keySet()];
+
+    for (Product__c product : productsToUpdate) {
+        Integer orderedQuantity = productIdToQuantityMap.get(product.Id);
+        product.Stock__c = product.Stock__c - orderedQuantity;
+    }
+
+    // Update the product stock in the database
+    update productsToUpdate;
+}
